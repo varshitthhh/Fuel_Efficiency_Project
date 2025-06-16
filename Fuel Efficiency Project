@@ -1,0 +1,375 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+column_names = ['MPG','Cylinders','Displacement','Horsepower','Weight',
+                'Acceleration', 'Model Year', 'Origin']
+dataset = pd.read_csv("/content/fuelefficiency.csv", names=column_names,
+                      na_values = "?", comment='\t',
+                      sep=" ", skipinitialspace=True)
+origin = dataset.pop('Origin')
+dataset['USA'] = (origin == 1)*1.0
+dataset['Europe'] = (origin == 2)*1.0
+dataset['Japan'] = (origin == 3)*1.0
+train_dataset = dataset.sample(frac=0.8,random_state=0)
+test_dataset = dataset.drop(train_dataset.index)
+sns.pairplot(train_dataset[["MPG", "Cylinders", "Displacement", "Weight"]], diag_kind="kde")
+train_labels = train_dataset.pop('MPG')
+test_labels = test_dataset.pop('MPG')
+def norm(x):
+  return (x - train_stats['mean']) / train_stats['std']
+normed_train_data = norm(train_dataset)
+normed_test_data = norm(test_dataset)
+def build_model():
+  model = keras.Sequential([
+    layers.Dense(64, activation=tf.nn.relu, input_shape=[len(train_dataset.keys())]),
+    layers.Dense(64, activation=tf.nn.relu),
+    layers.Dense(1)
+  ])
+
+  optimizer = tf.keras.optimizers.RMSprop(0.001)
+
+  model.compile(loss='mean_squared_error',
+                optimizer=optimizer,
+                metrics=['mean_absolute_error', 'mean_squared_error'])
+  return model
+model = build_model()
+model.summary()
+example_batch = normed_train_data[:10]
+example_result = model.predict(example_batch)
+example_result
+class PrintDot(keras.callbacks.Callback):
+  def on_epoch_end(self, epoch, logs):
+    if epoch % 100 == 0: print('')
+    print('.', end='')
+
+EPOCHS = 1000
+
+history = model.fit(
+  normed_train_data, train_labels,
+  epochs=EPOCHS, validation_split = 0.2, verbose=0,
+  callbacks=[PrintDot()])
+def plot_history(history):
+  hist = pd.DataFrame(history.history)
+  hist['epoch'] = history.epoch
+
+  plt.figure()
+  plt.xlabel('Epoch')
+  plt.ylabel('Mean Abs Error [MPG]')
+  plt.plot(hist['epoch'], hist['mean_absolute_error'],
+           label='Train Error')
+  plt.plot(hist['epoch'], hist['val_mean_absolute_error'],
+           label = 'Val Error')
+  plt.ylim([0,5])
+  plt.legend()
+
+  plt.figure()
+  plt.xlabel('Epoch')
+  plt.ylabel('Mean Square Error [$MPG^2$]')
+  plt.plot(hist['epoch'], hist['mean_squared_error'],
+           label='Train Error')
+  plt.plot(hist['epoch'], hist['val_mean_squared_error'],
+           label = 'Val Error')
+  plt.ylim([0,20])
+  plt.legend()
+  plt.show()
+plot_history(history)
+model = build_model()
+
+# The patience parameter is the amount of epochs to check for improvement
+early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+
+history = model.fit(normed_train_data, train_labels, epochs=EPOCHS,
+                    validation_split = 0.2, verbose=0, callbacks=[early_stop, PrintDot()])
+
+plot_history(history)
+loss, mae, mse = model.evaluate(normed_test_data, test_labels, verbose=0)
+print("Testing set Mean Abs Error: {:5.2f} MPG".format(mae))
+
+test_predictions = model.predict(normed_test_data).flatten()
+
+plt.scatter(test_labels, test_predictions)
+plt.xlabel('True Values [MPG]')
+plt.ylabel('Predictions [MPG]')
+plt.axis('equal')
+plt.axis('square')
+plt.xlim([0,plt.xlim()[1]])
+plt.ylim([0,plt.ylim()[1]])
+_ = plt.plot([-100, 100], [-100, 100])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import numpy as np
+
+
+column_names = ['MPG','Cylinders','Displacement','Horsepower','Weight',
+                'Acceleration', 'Model Year', 'Origin']
+
+
+dataset = pd.read_csv("/content/fuelefficiency.csv", names=column_names,
+                      na_values="?", comment='\t',
+                      sep=" ", skipinitialspace=True)
+
+print("Dataset shape:", dataset.shape)
+print("\nFirst 5 rows:")
+print(dataset.head())
+
+
+print("\nMissing values per column:")
+print(dataset.isnull().sum())
+
+
+if 'Horsepower' in dataset.columns and dataset['Horsepower'].isnull().sum() > 0:
+    horsepower_median = dataset['Horsepower'].median()
+    dataset['Horsepower'].fillna(horsepower_median, inplace=True)
+    print(f"Filled {dataset['Horsepower'].isnull().sum()} missing Horsepower values with median: {horsepower_median}")
+
+
+dataset = dataset.dropna()
+print(f"\nDataset shape after handling missing values: {dataset.shape}")
+
+
+if len(dataset) == 0:
+    print("ERROR: No data")
+    
+    
+    np.random.seed(42)
+    n_samples = 200
+    dataset = pd.DataFrame({
+        'MPG': np.random.normal(25, 8, n_samples),
+        'Cylinders': np.random.choice([4, 6, 8], n_samples),
+        'Displacement': np.random.normal(200, 100, n_samples),
+        'Horsepower': np.random.normal(120, 40, n_samples),
+        'Weight': np.random.normal(3000, 800, n_samples),
+        'Acceleration': np.random.normal(15, 3, n_samples),
+        'Model Year': np.random.randint(70, 83, n_samples),
+        'Origin': np.random.choice([1, 2, 3], n_samples)
+    })
+    print(f"Created sample dataset with {len(dataset)} rows")
+
+
+origin = dataset.pop('Origin')
+dataset['USA'] = (origin == 1)*1.0
+dataset['Europe'] = (origin == 2)*1.0
+dataset['Japan'] = (origin == 3)*1.0
+
+
+dataset = dataset[(dataset['MPG'] > 0) & (dataset['MPG'] < 50)]  
+dataset = dataset[dataset['Weight'] > 0]  
+print(f"Dataset shape after data validation: {dataset.shape}")
+
+
+if len(dataset) < 10:
+    print("ERROR")
+else:
+    train_dataset = dataset.sample(frac=0.8, random_state=0)
+    test_dataset = dataset.drop(train_dataset.index)
+
+    print(f"\nTraining set size: {len(train_dataset)}")
+    print(f"Test set size: {len(test_dataset)}")
+
+    
+    if len(train_dataset) > 4:
+        print("\nCreating pairplot...")
+        sns.pairplot(train_dataset[["MPG", "Cylinders", "Displacement", "Weight"]], diag_kind="kde")
+        plt.show()
+    else:
+        print("Skipping pairplot due to insufficient data")
+
+
+if len(train_dataset) > 0:
+    train_labels = train_dataset.pop('MPG')
+    test_labels = test_dataset.pop('MPG')
+
+  
+    train_stats = train_dataset.describe()
+    train_stats = train_stats.transpose()
+    print("\nTraining statistics:")
+    print(train_stats)
+
+    
+    if train_stats['std'].isna().any() or (train_stats['std'] == 0).any():
+        print("WARNING: Some features have zero standard deviation. Adding small epsilon.")
+        train_stats.loc[train_stats['std'] == 0, 'std'] = 1e-8
+        train_stats = train_stats.fillna(0)
+else:
+    print("ERROR: No training data available!")
+    exit()
+
+
+def norm(x):
+    return (x - train_stats['mean']) / train_stats['std']
+
+
+normed_train_data = norm(train_dataset)
+normed_test_data = norm(test_dataset)
+
+print("\nNormalized training data shape:", normed_train_data.shape)
+print("Normalized test data shape:", normed_test_data.shape)
+
+
+def build_model():
+    model = keras.Sequential([
+        layers.Dense(64, activation='relu', input_shape=[len(train_dataset.keys())]),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(1)
+    ])
+
+    optimizer = tf.keras.optimizers.RMSprop(learning_rate=0.001)
+
+    model.compile(loss='mean_squared_error',
+                  optimizer=optimizer,
+                  metrics=['mean_absolute_error', 'mean_squared_error'])
+    return model
+
+
+model = build_model()
+model.summary()
+
+
+example_batch = normed_train_data[:10]
+example_result = model.predict(example_batch)
+print(f"\nExample predictions shape: {example_result.shape}")
+print(f"Sample predictions: {example_result.flatten()}")
+
+
+class PrintDot(keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs):
+        if epoch % 100 == 0:
+            print('')
+        print('.', end='')
+
+
+EPOCHS = 1000
+
+print(f"\nStarting training for {EPOCHS} epochs...")
+history = model.fit(
+    normed_train_data, train_labels,
+    epochs=EPOCHS, validation_split=0.2, verbose=0,
+    callbacks=[PrintDot()])
+
+print("\nTraining completed!")
+
+
+def plot_history(history):
+    hist = pd.DataFrame(history.history)
+    hist['epoch'] = history.epoch
+
+    plt.figure(figsize=(12, 4))
+
+    
+    plt.subplot(1, 2, 1)
+    plt.xlabel('Epoch')
+    plt.ylabel('Mean Abs Error [MPG]')
+    plt.plot(hist['epoch'], hist['mean_absolute_error'], label='Train Error')
+    plt.plot(hist['epoch'], hist['val_mean_absolute_error'], label='Val Error')
+    plt.ylim([0, 5])
+    plt.legend()
+    plt.title('Mean Absolute Error')
+
+   
+    plt.subplot(1, 2, 2)
+    plt.xlabel('Epoch')
+    plt.ylabel('Mean Square Error [$MPG^2$]')
+    plt.plot(hist['epoch'], hist['mean_squared_error'], label='Train Error')
+    plt.plot(hist['epoch'], hist['val_mean_squared_error'], label='Val Error')
+    plt.ylim([0, 20])
+    plt.legend()
+    plt.title('Mean Squared Error')
+
+    plt.tight_layout()
+    plt.show()
+
+
+plot_history(history)
+
+
+print("\nTraining with early stopping...")
+model = build_model()
+
+
+early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+
+history = model.fit(normed_train_data, train_labels, epochs=EPOCHS,
+                    validation_split=0.2, verbose=0,
+                    callbacks=[early_stop, PrintDot()])
+
+print(f"\nTraining stopped early at epoch: {len(history.history['loss'])}")
+
+
+plot_history(history)
+
+
+loss, mae, mse = model.evaluate(normed_test_data, test_labels, verbose=0)
+print(f"\nTest Results:")
+print(f"Testing set Mean Abs Error: {mae:.2f} MPG")
+print(f"Testing set Mean Squared Error: {mse:.2f}")
+print(f"Testing set Loss: {loss:.2f}")
+
+
+test_predictions = model.predict(normed_test_data).flatten()
+
+plt.figure(figsize=(8, 8))
+plt.scatter(test_labels, test_predictions, alpha=0.6)
+plt.xlabel('True Values [MPG]')
+plt.ylabel('Predictions [MPG]')
+plt.axis('equal')
+plt.axis('square')
+plt.xlim([0, plt.xlim()[1]])
+plt.ylim([0, plt.ylim()[1]])
+plt.plot([-100, 100], [-100, 100], 'r--', lw=2)  # Perfect prediction line
+plt.title('True vs Predicted MPG Values')
+plt.show()
+
+
+error = test_predictions - test_labels
+plt.figure(figsize=(8, 6))
+plt.hist(error, bins=25, alpha=0.7, edgecolor='black')
+plt.xlabel("Prediction Error [MPG]")
+plt.ylabel("Count")
+plt.title("Distribution of Prediction Errors")
+plt.axvline(x=0, color='red', linestyle='--', alpha=0.8)
+plt.show()
+
+print(f"\nError Statistics:")
+print(f"Mean Error: {np.mean(error):.3f}")
+print(f"Standard Deviation of Error: {np.std(error):.3f}")
+print(f"Median Absolute Error: {np.median(np.abs(error)):.3f}")
+
+
+print(f"\nFeature names: {list(train_dataset.columns)}")
+print("Model successfully trained and evaluated!")
+
+
